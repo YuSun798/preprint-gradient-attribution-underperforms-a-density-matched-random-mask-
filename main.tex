@@ -1,5 +1,14 @@
+% Journal-neutral preprint version. No venue branding or manuscript DOI.
 \documentclass{article}
-\usepackage{iclr2027_conference,times}
+\usepackage[margin=1in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage{authblk}
+\renewcommand\Affilfont{\small}
+\setlength{\affilsep}{0.5em}
+\usepackage{natbib}
+\usepackage{times}
 \input{math_commands.tex}
 
 \usepackage{hyperref}
@@ -24,9 +33,9 @@
 Density-Matched Random Mask on Loss-Based Forgetting
 Within LoRA's B-Matrix}
 
-\author{
-  Anonymous Authors
-}
+\author[1]{Yu Sun\thanks{Corresponding author: yu.sun@alumni.upenn.edu}}
+\affil[1]{University of Pennsylvania, Philadelphia, PA, United States}
+\date{}
 
 % allow floats to pack so body pages stay full
 \setcounter{topnumber}{3}
@@ -54,7 +63,7 @@ Within LoRA's B-Matrix}
 \input{sections/statements}
 
 \bibliography{references}
-\bibliographystyle{iclr2027_conference}
+\bibliographystyle{plainnat}
 
 \newpage
 \appendix
