@@ -1,0 +1,64 @@
+\documentclass{article}
+\usepackage{iclr2027_conference,times}
+\input{math_commands.tex}
+
+\usepackage{hyperref}
+\usepackage{url}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{subcaption}
+\usepackage{amsmath}
+\usepackage{multirow}
+\usepackage{array}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+
+\definecolor{colorGrad}{HTML}{2E86AB}
+\definecolor{colorRand}{HTML}{27AE60}
+\definecolor{colorWanda}{HTML}{C0392B}
+\definecolor{colorNone}{HTML}{7F8C8D}
+
+\title{Static Gradient Attribution Underperforms a\\
+Density-Matched Random Mask on Loss-Based Forgetting
+Within LoRA's B-Matrix}
+
+\author{
+  Anonymous Authors
+}
+
+% allow floats to pack so body pages stay full
+\setcounter{topnumber}{3}
+\setcounter{totalnumber}{6}
+\renewcommand{\topfraction}{0.90}
+\renewcommand{\bottomfraction}{0.90}
+\renewcommand{\textfraction}{0.07}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+\input{sections/abstract}
+\end{abstract}
+
+\input{sections/introduction}
+\input{sections/background}
+\input{sections/methodology}
+\input{sections/setup}
+\input{sections/experiments}
+\input{sections/analysis_sec}
+\input{sections/conclusion}
+
+\input{sections/statements}
+
+\bibliography{references}
+\bibliographystyle{iclr2027_conference}
+
+\newpage
+\appendix
+\input{sections/appendix}
+\input{sections/appendix_phi2}
+
+\end{document}

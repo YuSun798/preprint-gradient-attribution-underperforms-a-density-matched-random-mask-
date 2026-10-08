@@ -1,0 +1,263 @@
+\section{Methodology: Masking Mechanisms}
+\label{sec:method}
+
+% \subsection{Problem Formulation}
+
+% Continual learning trains a model on a sequence of tasks without losing performance on earlier ones~\citep{mccloskey1989catastrophic, french1999catastrophic}. 
+% To evaluate continual learning performance on earlier task~\citep{ french1999catastrophic}, we use the standard sequential fine-tuning protocol: a base model $f_\theta$ is adapted to task $t$ on its training split $\mathcal{D}_t$, then evaluated on all tasks $j \le t$. Tasks arrive in a fixed order indexed $t = 1, \dots, T$, with $T = 5$ throughout this paper. An adapter adds a low-rank update $\Delta W = BA$ to a frozen weight matrix $W_0$, where $B \in \mathbb{R}^{d_{\text{out}} \times r}$, $A \in \mathbb{R}^{r \times d_{\text{in}}}$, $r \ll \min(d_{\text{out}}, d_{\text{in}})$, and $W = W_0 + \alpha BA$. Table~\ref{tab:notation} collects the notation used from here on. The mask is generated once over the calibration set before task 1 and remains frozen throughout training (Algorithm ~\ref{alg:mask}).
+
+% \emph{Input and output.} The method takes four inputs: the pretrained base model, the ordered stream of $T$ tasks with their training splits, a small held-out calibration set drawn from a different distribution, and the selection budget $k$, the number of coordinates the mask may activate. It returns a single binary mask, fixed before the first task and shared by all of them, together with the adapter produced by training the unmasked coordinates under that mask. The mask is the object of study; nothing about it is task-specific or learned after the first forward pass over the calibration set.
+
+\begin{table}[t]
+\caption{Notation. Indices run over tasks $t = 1, \dots, T$ with $T = 5$, and over prior tasks $j \in \mathcal{P} = \{1, \dots, T-1\}$.}
+\label{tab:notation}
+\centering
+\small
+\begin{tabular}{@{}ll@{}}
+\toprule
+\textbf{Symbol} & \textbf{Meaning} \\
+\midrule
+$f_\theta$, $W_0$ & base model and its frozen pretrained weight matrix \\
+$B$, $A$ & low-rank LoRA factors, $B \in \mathbb{R}^{d_{\text{out}} \times r}$, $A \in \mathbb{R}^{r \times d_{\text{in}}}$ \\
+$r$, $\alpha$ & LoRA rank ($r = 16$) and scaling ($\alpha = 32$) \\
+$W$ & adapted weight, $W = W_0 + \alpha BA$ \\
+$t$, $T$ & task index and number of tasks ($T = 5$) \\
+$\mathcal{D}_t$ & training split of task $t$ \\
+$\mathcal{D}$ & held-out calibration set ($64$ Alpaca samples) \\
+$m$ & binary mask over the trainable coordinates, $m \in \{0,1\}^{|A|+|B|}$ \\
+$k$ & selection budget: number of coordinates with $m = 1$ \\
+$g_i$ & gradient-attribution score of coordinate $i$ (\S\ref{sec:mask}) \\
+$\mathcal{L}_j^{(\tau)}$ & evaluation loss on task $j$ after training through task $\tau$ \\
+$\mathcal{P}$ & prior-task set $\{1, \dots, T-1\}$ \\
+$\mathrm{BWT}$ & loss-based backward transfer, Eq.~\eqref{eq:bwt} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+
+
+% Parameter masking applies a binary mask $m \in \{0, 1\}^{|A| + |B|}$ to the trainable parameters, confining updates at task $t$ to coordinates where $m = 1$. Two selection rules are compared: \emph{gradient attribution}, which scores each coordinate by its calibration-set gradient magnitude, and \emph{uniform random selection}. Both hold the budget $k$ fixed, so the two arms train the same number of parameters and differ only in which ones they are.
+
+% We measure forgetting by loss-based backward transfer. The backward transfer is
+% \begin{equation}
+% \label{eq:bwt}
+% \mathrm{BWT} = \frac{1}{|\mathcal{P}|} \sum_{j \in \mathcal{P}} \left( \mathcal{L}_j^{(T)} - \mathcal{L}_j^{(j)} \right),
+% \end{equation}
+% the mean increase in evaluation loss on the prior tasks $\mathcal{P} = \{1, \dots, T-1\}$ after the full sequence; lower values mean less forgetting. 
+% % Section~\ref{sec:metrics} defines the metric and the accuracy criterion in full.
+
+% \subsection{The B=0 Gradient Attribution Confound}
+% \label{sec:b0}
+
+% As set out in \S\ref{sec:intro}, standard zero-init LoRA has $B = 0$ at initialization, so gradient attribution assigns zero importance to every \texttt{lora\_A} parameter and the mask selects exclusively from \texttt{lora\_B}. This subsection gives the control measuring the consequence.
+
+% This asymmetry is a control experiment for the within-\texttt{lora\_B} comparison. Restricting gradient attribution to \texttt{lora\_B} is a no-op by construction and leaves the measured BWT identical, so the gradient mask is already confined to \texttt{lora\_B} without any explicit restriction; the same restriction applied to the random arm instead removes its \texttt{lora\_A} dilution and improves it (Table~\ref{tab:b0_asymmetry}, Appendix~\ref{app:b0_asymmetry}). That the restriction helps one arm and not the other is the direct evidence that the within-B comparison varies the selection criterion rather than the pool. Attribution-guided mask selection~\citep{liu2026attributionguided} therefore inherits a pool mismatch whenever its baseline draws from both pools, and we run that comparison matched in \S\ref{sec:d1}.
+
+% We scope this B=0 effect to \emph{standard} zero-initialized LoRA. PiSSA~\citep{meng2024pissa} initializes both $A$ and $B$ from principal singular values, so $B \neq 0$ and the gradient mask does not collapse to \texttt{lora\_B}-only; LoRA+~\citep{hayou2024loraplus} addresses the related asymmetric A/B dynamics. Whether attribution helps under non-zero initialization is open.
+
+
+\subsection{Problem Formulation}
+\label{sec:problem}
+
+We consider the standard sequential fine-tuning protocol for continual
+learning. A base model $f_\theta$ is adapted
+to task $t$ on its training split $\mathcal{D}_t$ and then evaluated on all
+tasks $j \leq t$. Tasks arrive in a fixed order indexed by
+$t = 1, \dots, T$, with $T=5$ throughout this paper.
+
+We use LoRA adapters, which add a low-rank update
+$\Delta W = BA$ to a frozen pretrained weight matrix $W_0$, where
+$B \in \mathbb{R}^{d_{\mathrm{out}} \times r}$,
+$A \in \mathbb{R}^{r \times d_{\mathrm{in}}}$, and
+$r \ll \min(d_{\mathrm{out}}, d_{\mathrm{in}})$:
+\begin{equation}
+    W = W_0 + \alpha BA.
+\end{equation}
+Table~\ref{tab:notation} summarizes the notation used throughout.
+A binary mask $m \in \{0,1\}^{|A|+|B|}$ restricts optimization to
+coordinates for which $m_i=1$. The mask is constructed once from the
+calibration set before the first task and remains fixed throughout the
+task sequence (Algorithm~\ref{alg:mask}).
+
+We compare two coordinate-selection rules: \emph{gradient attribution},
+which ranks coordinates by their calibration-set gradient magnitude, and
+\emph{uniform random selection}. For a fixed candidate parameter pool,
+both methods activate the same budget $k$; they therefore differ only in
+which coordinates are selected.
+
+We measure forgetting using loss-based backward transfer:
+\begin{equation}
+\label{eq:bwt}
+\mathrm{BWT}
+=
+\frac{1}{|\mathcal{P}|}
+\sum_{j \in \mathcal{P}}
+\left(
+\mathcal{L}_j^{(T)}-\mathcal{L}_j^{(j)}
+\right),
+\end{equation}
+where $\mathcal{P}=\{1,\dots,T-1\}$. This is the mean increase in
+evaluation loss on prior tasks after completing the full sequence;
+lower values indicate less forgetting.
+
+
+\subsection{The $B=0$ Gradient-Attribution Confound}
+\label{sec:b0}
+
+Standard LoRA initializes $B=0$. For
+\begin{equation}
+    W = W_0 + \alpha BA,
+\end{equation}
+the gradient with respect to $A$ is
+\begin{equation}
+\label{eq:a_grad}
+    \frac{\partial \mathcal{L}}{\partial A}
+    =
+    \alpha B^\top
+    \frac{\partial \mathcal{L}}{\partial W}.
+\end{equation}
+Hence, at initialization,
+\begin{equation}
+    B=0
+    \quad\Longrightarrow\quad
+    \frac{\partial \mathcal{L}}{\partial A}=0.
+\end{equation}
+Gradient attribution therefore assigns zero importance to every
+\texttt{lora\_A} coordinate and selects exclusively from
+\texttt{lora\_B}. In contrast, an unrestricted random mask samples from
+the full LoRA parameter pool, $\texttt{lora\_A}\cup\texttt{lora\_B}$.
+A direct comparison between these masks consequently changes two factors
+at once: the \emph{selection criterion} and the \emph{candidate parameter
+pool}.
+
+To isolate the selection criterion, the candidate pool must therefore be
+matched. Restricting gradient attribution explicitly to
+\texttt{lora\_B} is a null operation under zero initialization, whereas
+restricting the random baseline to \texttt{lora\_B} removes the pool
+mismatch. Our primary comparison accordingly evaluates gradient and
+random selection within the same \texttt{lora\_B} pool; Section~\ref{sec:d1}
+additionally matches their selection density.
+
+This scope excludes Attribution-Guided CL~\citep{liu2026attributionguided},
+which computes attribution from a separately trained model. Because
+$B\neq0$ at scoring time in that procedure, the zero-initialization
+confound identified here does not apply to it.
+
+This confound is specific to standard zero-initialized LoRA. For example,
+PiSSA~\citep{meng2024pissa} initializes both $A$ and $B$ from principal
+singular values, so $B \neq 0$ and Equation~\ref{eq:a_grad} does not
+force the gradient with respect to $A$ to vanish. LoRA+~\citep{hayou2024loraplus}
+addresses related asymmetric optimization dynamics between the two LoRA
+factors. Whether gradient attribution is beneficial under non-zero
+initialization remains an open question.
+
+% \subsection{Density-Matched Mask Constructions}
+% \label{sec:masks}
+
+% A selection rule scores every trainable coordinate and keeps the top $k$ of them. Gradient attribution scores coordinate $i$ by the mean absolute calibration-set gradient,
+% \begin{equation}
+% \label{eq:score}
+% g_i = \mathbb{E}_{x \sim \mathcal{D}}\left[\left|\frac{\partial \mathcal{L}(x)}{\partial w_i}\right|\right],
+% \end{equation}
+% and the mask keeps the $k$ largest scores,
+% \begin{equation}
+% \label{eq:topk}
+% m_i = \mathbb{1}\left[\, g_i \geq \tau_k \,\right], \qquad \tau_k = \max\left\{\tau : \left|\{i : g_i \geq \tau\}\right| \geq k\right\},
+% \end{equation}
+% so that exactly $k$ coordinates are active and ties go to the higher score. Uniform random selection replaces $g_i$ by a draw from $\mathrm{Uniform}(0,1)$ and applies the same top-$k$ rule, which is what makes the two arms comparable: same budget, same pool, only the ranking rule differs.
+
+% The pools themselves are not interchangeable, and matching them is the point of the control. Let $\mathcal{B}$ denote the \texttt{lora\_B} sub-pool, $|\mathcal{B}| = 29{,}933{,}568$. The unrestricted gradient mask applies \eqref{eq:topk} over all trainable coordinates and, because $B = 0$ makes \eqref{eq:score} vanish on every \texttt{lora\_A} coordinate (\S\ref{sec:b0}), it in fact selects a subset of $\mathcal{B}$ alone. The density-matched gradient arm instead renormalises the budget to the same fraction of $\mathcal{B}$ the random arm uses,
+% \begin{equation}
+% \label{eq:density}
+% k_{\text{Grad-B}} = \left\lfloor 0.1\,|\mathcal{B}| \right\rfloor = 1{,}651{,}508 = k_{\text{Random-B}},
+% \end{equation}
+% so density and pool are held fixed and the selection criterion is the only free variable.
+
+% We compare seven strategies, in the short forms used throughout: \emph{Grad-Full} for the unfiltered gradient mask, \emph{Grad-B} for the density-matched gradient mask restricted to \texttt{lora\_B}, and \emph{Random-B} for the uniform random mask on the same pool. (1)~\textbf{Static OOD-calibrated gradient mask} (Grad-Full) scores by \eqref{eq:score} over 64 \emph{out-of-domain} Alpaca samples and selects the top-10\% once for all five tasks; by the $B=0$ effect (\S\ref{sec:b0}) it draws only from \texttt{lora\_B}. (2)~\textbf{Gradient B-only control} (\texttt{full\_alora\_B\_only}) is (1) with the attribution pool restricted to \texttt{lora\_B}, a null check \emph{identical} to (1) at all seven seeds. (3)~\textbf{Density-matched gradient arm} (Grad-B) is the headline arm: the budget is renormalised by \eqref{eq:density} so that 10\% of the \texttt{lora\_B} sub-pool is selected ($1{,}651{,}508$ parameters); together with (5) it forms D1 (Table~\ref{tab:d1}). (4)~\textbf{Random mask (A+B)} draws 10\% uniformly at random from all LoRA parameters, and (5)~\textbf{Random B-only} (Random-B) draws 10\% uniformly at random from \texttt{lora\_B} only, the density-matched partner of (3). These three \texttt{lora\_B}-restricted constructions must not be conflated: (2) is a no-op equalling the confounded mask, (3) is the density-matched headline arm, and (1) is the confounded arm at full-pool top-10\% ($2{,}993{,}357$), so only (3) is density-matched. (6)~\textbf{No mask} is standard LoRA with all parameters updated, and (7)~\textbf{\texttt{uniform\_B}} spreads the 10\% budget uniformly across LoRA modules (soft 0.7 shrinkage) while drawing from \texttt{lora\_B}; the latter is seed-dependent and does not establish the mechanism (\S\ref{sec:module}).
+
+% Algorithm~\ref{alg:mask} (Appendix~\ref{app:notation}) states the end-to-end procedure. The mask is built once from the calibration set before any task is trained, then frozen; the task loop trains only the coordinates where $m = 1$, so no step of the procedure is task-specific.
+\subsection{Density-Matched Mask Construction}
+\label{sec:mask}
+
+Let $\mathcal{S}$ denote the candidate set of LoRA coordinates from which
+a mask is selected. For gradient attribution, each coordinate
+$i \in \mathcal{S}$ is scored by its mean absolute gradient over the
+held-out calibration set $\mathcal{D}$:
+\begin{equation}
+\label{eq:grad_score}
+g_i
+=
+\mathbb{E}_{x \sim \mathcal{D}}
+\left[
+\left|
+\frac{\partial \mathcal{L}(x)}{\partial w_i}
+\right|
+\right].
+\end{equation}
+Given a selection budget $k$, the binary mask activates the $k$
+highest-scoring coordinates:
+\begin{equation}
+\label{eq:topk}
+m_i
+=
+\mathbf{1}
+\left[
+i \in
+\operatorname{TopK}
+\left(
+\{g_j\}_{j\in\mathcal{S}},\, k
+\right)
+\right].
+\end{equation}
+
+For uniform random selection, we instead draw independent scores
+\begin{equation}
+\label{eq:random_score}
+u_i \sim \mathrm{Uniform}(0,1),
+\qquad i \in \mathcal{S},
+\end{equation}
+and apply the same top-$k$ operator in Equation~\ref{eq:topk} with
+$u_i$ in place of $g_i$. Thus, once the candidate pool
+$\mathcal{S}$ and budget $k$ are fixed, the two methods differ only in
+the rule used to rank coordinates.
+
+\paragraph{Density-matched comparison.}
+Following the pool confound established in \S\ref{sec:b0}, our primary
+comparison restricts both selection rules to the
+\texttt{lora\_B} coordinate pool, denoted by $\mathcal{B}$.
+Both headline arms activate exactly 10\% of this pool:
+\begin{equation}
+\label{eq:d1_budget}
+k_{\mathrm{D1}}
+=
+1{,}651{,}508.
+\end{equation}
+\emph{Grad-B} applies Equation~\ref{eq:grad_score} within
+$\mathcal{B}$ and selects the top $k_{\mathrm{D1}}$ coordinates,
+whereas \emph{Random-B} selects the same number of coordinates
+uniformly at random from $\mathcal{B}$. The two arms therefore have
+the same candidate pool and the same number of trainable coordinates;
+the selection criterion is the only varying factor.
+
+\paragraph{Reference and control arms.}
+For comparison with the conventional design, \emph{Grad-Full} applies
+gradient attribution with the full LoRA coordinate set
+$\mathcal{A}\cup\mathcal{B}$ as its nominal candidate pool and uses a
+10\% full-pool budget of 2,993,357 coordinates. Under standard
+zero initialization, its selected support nevertheless lies entirely
+within $\mathcal{B}$ by \S\ref{sec:b0}; because its budget is larger
+than $k_{\mathrm{D1}}$, Grad-Full is pool-matched to Random-B in
+effective support but not density-matched. \emph{Random A+B} draws the
+same 10\% full-pool budget uniformly from
+$\mathcal{A}\cup\mathcal{B}$ and therefore constitutes the conventional
+pool-unmatched random baseline.
+
+We additionally use two auxiliary controls where relevant.
+\emph{No mask} is standard LoRA with all adapter coordinates updated.
+\emph{Uniform-B} uses the same \texttt{lora\_B} budget as the matched
+comparison while distributing selections uniformly across LoRA modules;
+it is used only as a module-concentration control in
+\S\ref{sec:module}.
+
+Algorithm~\ref{alg:mask} summarizes mask construction and sequential
+training.

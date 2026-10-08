@@ -1,0 +1,16 @@
+\section{Experimental Setup}
+\label{sec:setup}
+
+\subsection{Models, Benchmarks \& Training Details}
+\label{sec:models}
+
+Qwen2.5-3B~\citep{qwen2024qwen25} in 4-bit NF4 (bitsandbytes), LoRA rank 16 ($\alpha$=32), AdamW (lr $2\times10^{-4}$, warmup 0.03), 1 epoch, 500 train samples per task, batch size 1, max length 512; calibration uses 64 Alpaca samples. All methods operate on 29.9M trainable LoRA parameters (0.96\% of 3.1B); the full-pool top-10\% selects $2{,}993{,}357$, falling entirely within \texttt{lora\_B} ($B=0$) and activating $\sim$20\% of B, against 10\% for Random-B. The comparison is matched on pool but not density; \S\ref{sec:d1} equalizes it.
+
+Five domains are used in a fixed order: Code (sahil2801/CodeAlpaca-20k), Medical (GBaker/MedQA-USMLE-4-options), Legal (lex\_glue, casehold subset), Math (openai/gsm8k), Creative (ChaoticNeutrals/Creative\_Writing-ShareGPT, 6.6K instruction-response pairs). Calibration: tatsu-lab/alpaca (64 samples); 100 eval samples per task.
+
+\subsection{Evaluation Metrics}
+\label{sec:metrics}
+
+% Loss-based BWT is the average increase in evaluation loss on prior tasks after learning new ones, lower meaning less forgetting, as defined in \S\ref{sec:method}. 
+We use Loss-based BWT in preference to accuracy-based BWT because loss is continuous and more sensitive to the small differences between masking strategies. 
+All reported forgetting metrics are loss-based, reported as mean $\pm$ std over seven seeds (42, 123, 456, 789, 1024, 2048, 4096); part of the runs used a second GPU. The accuracy side of the same comparison, together with the option log-likelihood scorer and its scope, is reported separately in \S\ref{sec:accuracy_branch}.

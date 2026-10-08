@@ -1,0 +1,16 @@
+\section{Conclusion}
+\label{sec:conclusion}
+
+At equal parameter count within the \texttt{lora\_B} pool, the random mask achieves lower loss-based BWT in every seed, an advantage that reproduces in mean and direction in a second hardware/software environment and is not an artifact of density. The same paired runs also show lower mean final held-out loss on the prior tasks for Random-B (Grad-B minus Random-B $=+0.0813$, $p=0.023$), although this endpoint result is less leave-one-out robust than the BWT contrast. On the loss-based evidence, the attribution pass is not justified: removing it eliminates a one-time 64-sample calibration forward--backward pass (64 steps), equal to 12.8\% of one 500-step task-training budget, and removes the calibration-data requirement. Accuracy-BWT remains inconclusive at seven seeds, with the pre-specified non-inferiority criterion unmet. All conclusions are scoped to the tested task order and static masks; a per-task adaptive mask and a better-powered accuracy evaluation are the most informative next tests.
+
+\paragraph{Limitations.}
+\label{sec:limitations}
+
+% The within-\texttt{lora\_B} finding is bounded by several caveats, among them static masks only, absolute BWT that is not reproducible across sessions, a non-robust B-pool advantage, loss-based evaluation, a single task order, and one LoRA rank, each stated in Appendix~\ref{app:limitations}. Every claim rests on within-run comparisons, where the paired-comparison error is smaller than the positional and cross-session offsets that shift absolute levels 
+The within-\texttt{lora\_B} finding is limited to static masks,
+a single primary task order, and rank-16 LoRA under standard
+zero initialization. Our primary conclusions are based on loss-based
+BWT, with accuracy validation limited to the two discrete-option tasks.
+Absolute BWT also varies across sessions, so all statistical claims rely
+on within-session paired comparisons (Appendix~\ref{app:nf4_drift}).
+% the output-projection suppression control is seed-dependent, so the concentration is an observation rather than a mechanism.

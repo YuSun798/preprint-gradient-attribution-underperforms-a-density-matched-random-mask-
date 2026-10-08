@@ -1,0 +1,44 @@
+\section{Cross-Architecture Density-Matched Replication (Phi-2)}
+\label{app:phi2_d1}
+
+The density-matched contrast of \S\ref{sec:confounded} is also run on Phi-2 (2.78B, GPT-NeoX-style), an architecturally distinct family from Qwen2.5-3B. As in the primary D1 comparison, both arms select from \texttt{lora\_B} alone and use the same density: each activates exactly 1{,}048{,}576 coordinates, which is 10\% of the 10{,}485{,}760-coordinate \texttt{lora\_B} sub-pool (and 5.0\% of the 20{,}971{,}520 trainable $A{+}B$ pool). The candidate pool and update budget are therefore matched, leaving only the ranking rule different between Random-B and Grad-B.
+
+\begin{table}[t]
+\caption{Density-matched D1 replication on Phi-2, four seeds. Both arms select the same number of coordinates from the same \texttt{lora\_B} pool; $\Delta=\text{Random-B}-\text{Grad-B}$ in loss-based BWT, so negative values mean the random mask forgets less.}
+\label{tab:phi2_d1}
+\centering
+\small
+\begin{tabular}{@{}lccc@{}}
+\toprule
+\textbf{Seed} & \textbf{Random-B BWT $\downarrow$} & \textbf{Grad-B BWT $\downarrow$} & \textbf{$\Delta$} \\
+\midrule
+42   & $\mathbf{0.0397}$ & 0.1661 & $-0.1264$ \\
+123  & $\mathbf{0.0363}$ & 0.1273 & $-0.0910$ \\
+456  & $\mathbf{0.0461}$ & 0.1749 & $-0.1289$ \\
+1024 & $\mathbf{0.0480}$ & 0.1624 & $-0.1144$ \\
+\midrule
+Mean & --- & --- & $-0.1152$ (SD $0.0173$) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The direction replicates in all four seeds (Table~\ref{tab:phi2_d1}). The mean paired contrast is $-0.1152$ (SD $0.0173$), with paired $t(3)=-13.32$, $p=0.0009$, and 95\% CI $[-0.143,-0.088]$. A two-sided sign test over four concordant seeds gives $p=0.125$; because $n=4$ is too small for a strong distributional claim and the normality assumption behind the paired $t$-test is weak, we treat the $t$ statistic as a supporting parametric summary rather than resting the replication claim on it. The replication claim is instead based on the density-matched design and the 4/4 directional agreement.
+
+\begin{table}[t]
+\caption{Density-matched D1 contrast on both architectures under the same sign convention, $\Delta=\text{Random-B}-\text{Grad-B}$ (negative means Random-B forgets less). Phi-2 is an architecturally distinct four-seed replication of the seven-seed Qwen2.5-3B result.}
+\label{tab:phi2_d1_compare}
+\centering
+\small
+\begin{tabular}{@{}lccccc@{}}
+\toprule
+\textbf{Architecture} & \textbf{$n$} & \textbf{Mean $\Delta$} & \textbf{SD} & \textbf{$t$} & \textbf{$p$} \\
+\midrule
+Qwen2.5-3B & 7 & $-0.1552$ & 0.0707 & $-5.80$ & 0.0011 \\
+Phi-2      & 4 & $-0.1152$ & 0.0173 & $-13.32$ & 0.0009 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Table~\ref{tab:phi2_d1_compare} places the clean Phi-2 replication beside the primary Qwen2.5-3B result under the same sign convention. The task-level decomposition also resembles the primary model rather than merely sharing the aggregate sign. Averaged over the four Phi-2 seeds, Medical contributes 67.2\% of the aggregate contrast, Math 24.1\%, Code 5.8\%, and Legal 2.9\%; Medical is the largest contributor in every seed. On Qwen2.5-3B, Medical contributes 79.9\% of the matched contrast. Thus the two architectures agree on where most of the effect is concentrated, although the concentration is somewhat less extreme on Phi-2.
+
+The replication uses the same five task domains, LoRA rank, calibration set, and 10\% \texttt{lora\_B} budget as D1. It differs in model family, in the Phi-2 LoRA target set (which omits \texttt{dense}, giving a 20{,}971{,}520-parameter trainable pool), and in the number of seeds. The earlier Phi-2 within-B comparison in Appendix~\ref{app:cross_arch} remains a density-unmatched boundary check; the results here are the clean cross-architecture counterpart to the headline density-matched D1 comparison.

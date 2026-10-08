@@ -1,0 +1,33 @@
+\section{Introduction}
+\label{sec:intro}
+
+Parameter-efficient adapters such as LoRA~\citep{hu2021lora, dettmers2023qlora} make it possible to incorporate a sequence of tasks while updating only a small fraction of a language model. Sequential updates can nevertheless overwrite capabilities acquired on earlier tasks, the classical problem of catastrophic forgetting~\citep{mccloskey1989catastrophic, french1999catastrophic}.
+Continual learning for LoRA adapters updates only a chosen subset of parameters, and gradient attribution is the common rule for choosing it: a backward pass over held-out calibration data scores each parameter, and the highest-scoring ones are updated. Choosing the subset uniformly at random costs nothing instead, so whether the attribution pass earns its cost has a direct engineering answer.
+
+Standard zero-initialized LoRA introduces a potential confound. With $B = 0$ at initialization, $\partial \mathcal{L}/\partial A = 0$, so gradient attribution assigns zero importance to every \texttt{lora\_A} parameter and a gradient mask selects only from \texttt{lora\_B}, while an unrestricted random baseline draws from both factors together. Any such comparison mixes the selection criterion with the parameter pool. Attribution-Guided CL~\citep{liu2026attributionguided} is the closest prior use of gradient attribution in LLM continual learning, but it estimates importance from a separately trained model; because $B\neq0$ at scoring time, the zero-initialization confound studied here does not apply to its attribution procedure.
+
+We separate the two by restricting both arms to the same pool and parameter count. On Qwen2.5-3B with rank-16 LoRA over a five-task sequence we compare a uniformly random mask on \texttt{lora\_B} (Random-B) against a gradient mask renormalised to the same 10\% of \texttt{lora\_B} (Grad-B), so both train exactly the same parameters and differ only in how those parameters are chosen. Across seven seeds the random mask achieves the lower loss-based backward transfer, and the gap holds in every seed (Table~\ref{tab:d1}, Figure~\ref{fig:headline}). The aggregate gap is concentrated on the medical task, with code and math moving in the same direction and legal showing no reliable difference, a pattern consistent with a stability--plasticity trade-off: the random mask fits each task less well on its own diagonal yet retains earlier tasks better. Above all, this work makes two key contributions:
+
+\begin{figure}[t]
+\centering
+\begin{minipage}[b]{0.85\textwidth}
+\centering
+\includegraphics[width=\textwidth]{figures/figure1a_method_overview_corrected_v6.pdf}
+\centerline{\footnotesize (a) Method and comparison.}
+\end{minipage}\hfill
+\begin{minipage}[b]{0.60\textwidth}
+\centering
+\includegraphics[width=\textwidth]{figures/fig1_main_results.pdf}
+\centerline{\footnotesize (b) Key effect (D1, seven seeds).}
+\end{minipage}
+\caption{The density-matched comparison. (a) Both arms draw 10\% of the rank-16 \texttt{lora\_B} pool, so they train exactly the same 1.6M parameters and differ only in how those coordinates are chosen; because $B=0$ at initialization, the gradient score is zero for every \texttt{lora\_A} coordinate, and any baseline that draws from both pools changes the pool as well as the criterion. (b) Under that matched density the random mask achieves lower loss-based BWT than the gradient mask in all seven seeds.}
+\label{fig:headline}
+\end{figure}
+
+\textbf{A gradient-attribution confound and density-matched evaluation.}
+% We separate candidate-pool, density, and ranking-rule effects, yielding a comparison in which the selection criterion is the only varying factor.
+
+We show that under standard zero-initialized LoRA, initialization-time gradient attribution assigns zero importance to \texttt{lora\_A}, so an unrestricted gradient-versus-random comparison changes both the selection rule and the candidate parameter pool. We resolve this confound with a within-\texttt{lora\_B}, density-matched design that holds the candidate pool and update budget fixed, leaving the selection criterion as the only varying factor.
+
+\textbf{Practical validation and scope.}
+We quantify the cost of the attribution pass and evaluate the same comparison using accuracy-based retention (accuracy-BWT). The accuracy-BWT interval spans zero and does not establish the pre-specified 4-point non-inferiority criterion, so the engineering recommendation is scoped to the loss-based evidence. Removing attribution eliminates a one-time 64-sample calibration forward--backward pass (64 steps), equal to 12.8\% of one 500-step task-training budget, together with the calibration-data requirement.
